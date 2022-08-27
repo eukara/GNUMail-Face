@@ -259,89 +259,100 @@ static FaceController *singleInstance = nil;
 - (void) messageWillBeDisplayed: (CWMessage *) theMessage
 			 inView: (NSTextView *) theTextView
 {
-  NSEnumerator *theEnumerator;
-  NSString *aKey;
-  Face *aFace;
-  
-  BOOL hasFoundHeader;
+	NSEnumerator *theEnumerator;
+	NSString *aKey = nil;
+	NSString *urlFaceString = nil;
+	NSString *xFaceString = nil;
+	BOOL hasXImage = NO;
 
-  hasFoundHeader = NO;
-  aFace = [self faceFromTextView: theTextView];
+	Face *aFace;
+	aFace = [self faceFromTextView: theTextView];
   
-  if (!aFace) return;
+	if (!aFace)
+		return;
 
-  // We verify if our header is present.
-  theEnumerator = [[theMessage allHeaders] keyEnumerator];
+	// We verify if our header is present.
+	theEnumerator = [[theMessage allHeaders] keyEnumerator];
   
-  while ((aKey = [theEnumerator nextObject]))
-    {
-      if ([aKey caseInsensitiveCompare: @"X-Image-URL"] == NSOrderedSame ||
-	  [aKey caseInsensitiveCompare: @"X-Face"] == NSOrderedSame)
-	{
-	  hasFoundHeader = YES;
-	  break;
+	/* store away both keys */
+	while ((aKey = [theEnumerator nextObject])) {
+		if ([aKey caseInsensitiveCompare: @"X-Image-URL"] == NSOrderedSame) {
+			urlFaceString = [theMessage headerValueForName: aKey];
+		} else if ([aKey caseInsensitiveCompare: @"X-Image-URL"] == NSOrderedSame) {
+			xFaceString = [theMessage headerValueForName: aKey];
+		}
 	}
-    }
-  
-  
-  
-  if (hasFoundHeader)
-    {
-      NSString *aString;
-      
-      aString = [theMessage headerValueForName: aKey];
-      
-      // We search for X-Image-URL / X-Face
-      if (aString)
-	{
-	  id o;
-	  
-	  // We verify if the image is in our cache. If not, we create it and add it to our cache.
-	  o = [cache objectForKey: aString];
-	  
-	  if (!o)
-	    {
-	      // If it's an X-URL-Image
-	      if ([aKey caseInsensitiveCompare: @"X-Image-URL"] == NSOrderedSame)
-		{
-		  NSURLHandle *aHandle;
-		  NSURL *aURL;
-		  
-		  aURL = [NSURL URLWithString: aString];
-		  aHandle = [aURL URLHandleUsingCache: NO];
-		  [aHandle addClient: self];
-		  [aHandle loadInBackground];
-		  
-		  o = [[NSArray alloc] initWithObjects: aURL, aHandle, nil];
-		}
-	      else
-		{
-		  o = [[NSImage alloc] initWithXFaceString: aString];
-		}
-	      
-	      if (o)
-		{
-		  [cache setObject: o  forKey: aString];
-		  RELEASE(o);
-		}
-	    }
-	  
-	  if ([o isKindOfClass: [NSArray class]])
-	    {
-	      [aFace setImage: nil];
-	    }
-	  else
-	    {
-	      [aFace setImage: o];
-	    }
+
+	/* no faces, no display. */
+	if (!urlFaceString && !xFaceString) {
+		[aFace setImage: nil];
+		[aFace setNeedsDisplay: NO];
 	}
+
+	/* we have an X-Image URL */
+	if (urlFaceString) {
+		id o;
+
+		// We verify if the image is in our cache. If not, we create it and add it to our cache.
+		o = [cache objectForKey: urlFaceString];
+	  
+		/* we don't have the object in our cache */
+		if (!o) {
+			NSURLHandle *aHandle;
+			NSURL *aURL;
+
+			/* we load our image into the cache */
+			aURL = [NSURL URLWithString: urlFaceString];
+			aHandle = [aURL URLHandleUsingCache: NO];
+			[aHandle addClient: self];
+			[aHandle loadInBackground];
+		  
+			o = [[NSArray alloc] initWithObjects: aURL, aHandle, nil];
+
+			/* we must have something now, so add it to our cache */
+			if (o) {
+				[cache setObject: o  forKey: urlFaceString];
+				RELEASE(o);
+			}
+		}
+		
+		/* set the image */
+		if ([o isKindOfClass: [NSArray class]]) {
+			[aFace setImage: nil];
+			[aFace setNeedsDisplay: NO];
+		} else {
+			[aFace setImage: o];
+			[aFace setNeedsDisplay: YES];
+			hasXImage = YES;
+		}
+	}
+
+	/* don't have a X-Image-URL face that's valid, but an X-Face string */
+	if (hasXImage == NO && xFaceString) {
+		id o;
+	  
+		// We verify if the image is in our cache. If not, we create it and add it to our cache.
+		o = [cache objectForKey: xFaceString];
+	  
+		/* what if the item is NOT in our cache */
+		if (!o) {
+			o = [[NSImage alloc] initWithXFaceString: xFaceString];
+
+			/* now we have something we can set to */
+			if (o) {
+				[cache setObject: o  forKey: xFaceString];
+				RELEASE(o);
+			}
+		}
+
+		if ([o isKindOfClass: [NSArray class]]) {
+			[aFace setImage: nil];
+			[aFace setNeedsDisplay: NO];
+		} else {
+			[aFace setImage: o];
+			[aFace setNeedsDisplay: YES];
+		}
     }
-  else
-    {
-      [aFace setImage: nil];
-    }
-  
-  [aFace setNeedsDisplay: YES];
 }
 
 
