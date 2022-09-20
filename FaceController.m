@@ -29,6 +29,7 @@
 #include "MailWindowController.h"
 
 #include <Pantomime/CWMessage.h>
+#include <Addresses/Addresses.h>
 
 static FaceController *singleInstance = nil;
 
@@ -270,6 +271,64 @@ static FaceController *singleInstance = nil;
   
 	if (!aFace)
 		return;
+
+	/* check for face in AddressBook */
+	{
+		NSEnumerator *e; ADPerson *person;
+		e = [[[ADAddressBook sharedAddressBook] people] objectEnumerator];
+
+		while((person = [e nextObject])) {
+			ADMultiValue *emails;
+			int i;
+
+			emails = [person valueForProperty: ADEmailProperty];
+			for(i=0; i<[emails count]; i++)
+			{
+				NSString *type;
+				NSData *data;
+
+				NSString *mail = [emails valueAtIndex: i];
+
+				/* if this isn't a mail belonging to this header, try next */
+				if ([mail isEqualTo: [[theMessage from] address]] == NO)
+					continue;
+
+				/* check if we have an image associated with them */
+				type = [person valueForProperty: ADImageTypeProperty];
+				data = [person valueForProperty: ADImageProperty];
+
+				/* we have a picture! */
+				if (data && type) {
+					NSString *path;
+					path = [NSTemporaryDirectory() stringByAppendingPathComponent: @"ADLABPic.tiff"];
+					NSLog(@"They have a face, too!");
+
+					/* try writing the image to disk as a tiff */
+ 					if(![data writeToFile: path atomically: NO])
+						NSLog(@"Couldn't write temp file %@\n", path);
+					else { /* success writing */
+						NSImage* adbFace = [[NSImage alloc] initWithContentsOfFile: path];
+						NSLog(@"Face was dumped to path %@", path);
+
+						/* we were able to re-read the image too */
+						if (adbFace != nil) {
+							NSLog(@"Setting face for our contact");
+							[aFace setImage: adbFace]; 
+							[aFace setNeedsDisplay: NO];
+							RELEASE(adbFace);
+							[[NSFileManager defaultManager] removeFileAtPath: path handler: nil];
+							return;
+						}
+						/* quit the loop */
+						break;
+					}
+				}
+
+				/* we found the user, however they had no image associated with them. quit loop */
+				break;
+			}
+		}
+	}
 
 	// We verify if our header is present.
 	theEnumerator = [[theMessage allHeaders] keyEnumerator];

@@ -16,6 +16,12 @@ They are 48x48 1-bit images.
 X-Image-URL on the other hand is just a link to a remote image. Like a PNG or a JPEG.
 I recommend one with a resolution of 60x60 px.
 
+### Adressbook Framework
+It also looks up contact photos from the AddressBook framework first, before attempting to parse either X-Face or X-Image-URL. I personally use this to assign images to Newsletters and No-reply mails as well.
+
 ## Wishlist
-- Look up contact photos from the AddressBook framework first, before attempting to parse either X-Face or X-Image-URL.
 - Support 'Face', which is simply a base64 encoded PNG (http://quimby.gnus.org/circus/face/)
+
+## Installation
+
+Clone this repo into GNUMail/Bundles. You can then run `gmake` or `gmake install` just fine.
